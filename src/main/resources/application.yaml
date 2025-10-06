@@ -1,0 +1,29 @@
+spring:
+  application:
+    name: ez-kafka
+  docker:
+    compose:
+      file: docker-compose/compose.yaml
+  kafka:
+    consumer:
+      bootstrap-servers: localhost:9092
+      group-id: ${random.uuid}
+      security:
+        protocol: SSL
+      ssl:
+        bundle: ez-kafka
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      properties:
+        spring.json.value.default.type: com.fasterxml.jackson.databind.JsonNode
+  ssl:
+    bundle:
+      jks:
+        ez-kafka:
+          truststore:
+            type: PKCS12
+            location: classpath:truststore.p12
+            password: changeit
+          keystore:
+            type: PKCS12
+            location: classpath:keystore.p12
+            password: changeit
