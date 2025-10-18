@@ -6,7 +6,7 @@ spring:
       file: docker-compose/compose.yaml
   kafka:
     consumer:
-      bootstrap-servers: localhost:9092
+      bootstrap-servers: ${PIM_BOOTSTRAP_SERVERS:localhost:9092}
       group-id: ${random.uuid}
       security:
         protocol: SSL
