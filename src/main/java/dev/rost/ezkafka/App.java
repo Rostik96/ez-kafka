@@ -1,10 +1,10 @@
 package dev.rost.ezkafka;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.kafka.annotation.KafkaListener;
-import org.springframework.messaging.handler.annotation.Payload;
 
 @SpringBootApplication
 public class App {
@@ -15,7 +15,7 @@ public class App {
 
 
     @KafkaListener(topics = "ez")
-    void listen(@Payload JsonNode node) {
-        System.out.println("node = " + node);
+    void onMessage(ConsumerRecord<String, JsonNode> message) {
+        System.out.println("message = " + message);
     }
 }

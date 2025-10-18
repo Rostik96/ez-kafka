@@ -12,9 +12,7 @@ spring:
         protocol: SSL
       ssl:
         bundle: ez-kafka
-      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
-      properties:
-        spring.json.value.default.type: com.fasterxml.jackson.databind.JsonNode
+
   ssl:
     bundle:
       jks:
