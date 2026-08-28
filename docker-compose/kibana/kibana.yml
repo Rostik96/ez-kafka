@@ -1,0 +1,15 @@
+server.host: "0.0.0.0"
+elasticsearch.hosts: ["http://elasticsearch:9200"]
+xpack.encryptedSavedObjects.encryptionKey: "abcdefghijklmnopqrstuvwxyz123456"
+xpack.actions.allowedHosts:
+  - api.telegram.org
+xpack.actions.preconfigured:
+  telegram:
+    name: Telegram
+    actionTypeId: .webhook
+    config:
+      url: "${TELEGRAM_WEBHOOK_URL}"
+      method: post
+      headers:
+        Content-Type: application/json
+      hasAuth: false

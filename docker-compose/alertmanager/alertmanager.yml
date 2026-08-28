@@ -1,0 +1,32 @@
+global:
+  resolve_timeout: 1m
+
+route:
+  receiver: telegram
+  group_by: [alertname]
+  group_wait: 5s
+  group_interval: 15s
+  repeat_interval: 15s
+
+receivers:
+  - name: telegram
+    telegram_configs:
+      - bot_token: __TELEGRAM_BOT_TOKEN__
+        chat_id: __TELEGRAM_CHAT_ID__
+        api_url: https://api.telegram.org
+        send_resolved: true
+        parse_mode: HTML
+        message: |
+          <b>{{ .Status | toUpper }}</b> {{ .CommonLabels.alertname }}
+          {{ range .Alerts }}
+          {{ .Annotations.summary }}
+          {{ .Annotations.description }}
+          {{ end }}
+
+inhibit_rules:
+  - source_matchers:
+      - alertname = TargetDown
+    target_matchers:
+      - alertname = KafkaConsumerDisconnected
+    equal:
+      - job

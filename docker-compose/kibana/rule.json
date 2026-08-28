@@ -1,0 +1,47 @@
+{
+  "name": "Spring ERROR logs",
+  "consumer": "stackAlerts",
+  "rule_type_id": ".es-query",
+  "schedule": {
+    "interval": "30s"
+  },
+  "params": {
+    "searchType": "esQuery",
+    "timeField": "@timestamp",
+    "index": ["ez-kafka-logs-*"],
+    "esQuery": "{\"query\":{\"query_string\":{\"query\":\"level:ERROR OR (level:WARN AND message:\\\"Error connecting\\\")\"}}}",
+    "size": 10,
+    "aggType": "count",
+    "groupBy": "all",
+    "termSize": 5,
+    "thresholdComparator": ">=",
+    "threshold": [1],
+    "timeWindowSize": 30,
+    "timeWindowUnit": "s",
+    "excludeHitsFromPreviousRun": false
+  },
+  "actions": [
+    {
+      "group": "query matched",
+      "id": "telegram",
+      "params": {
+        "body": "{\"chat_id\":\"__TELEGRAM_CHAT_ID__\",\"text\":\"ELK FIRING {{rule.name}}\\n{{context.message}}\"}"
+      },
+      "frequency": {
+        "notify_when": "onActiveAlert",
+        "summary": false
+      }
+    },
+    {
+      "group": "recovered",
+      "id": "telegram",
+      "params": {
+        "body": "{\"chat_id\":\"__TELEGRAM_CHAT_ID__\",\"text\":\"ELK RESOLVED {{rule.name}}\"}"
+      },
+      "frequency": {
+        "notify_when": "onActionGroupChange",
+        "summary": false
+      }
+    }
+  ]
+}

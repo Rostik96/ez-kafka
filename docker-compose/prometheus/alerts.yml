@@ -1,0 +1,22 @@
+groups:
+  - name: scrape
+    rules:
+      - alert: TargetDown
+        expr: up == 0
+        for: 15s
+        labels:
+          severity: critical
+        annotations:
+          summary: Prometheus scrape target is down
+          description: '{{ $labels.job }} at {{ $labels.instance }} has been unreachable for 30s.'
+
+  - name: kafka-consumer
+    rules:
+      - alert: KafkaConsumerDisconnected
+        expr: sum by (job) (kafka_consumer_connection_count) == 0
+        for: 15s
+        labels:
+          severity: critical
+        annotations:
+          summary: Kafka consumers have no broker connections
+          description: sum(kafka_consumer_connection_count) has been 0 for 30s.

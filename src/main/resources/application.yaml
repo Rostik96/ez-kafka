@@ -3,7 +3,7 @@ spring:
     name: ez-kafka
   docker:
     compose:
-      file: docker-compose/compose.yaml
+      enabled: false
   kafka:
     consumer:
       bootstrap-servers: ${PIM_BOOTSTRAP_SERVERS:localhost:9092}
@@ -25,3 +25,12 @@ spring:
             type: PKCS12
             location: classpath:keystore.p12
             password: changeit
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,prometheus
+  metrics:
+    tags:
+      application: ${spring.application.name}

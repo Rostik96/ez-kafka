@@ -1,0 +1,9 @@
+.git
+.idea
+.vscode
+**/.DS_Store
+*.iml
+.mvn
+HELP.md
+target
+docker-compose

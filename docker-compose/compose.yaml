@@ -1,26 +1,153 @@
 name: ez-kafka
 services:
   kafka:
-    image: bitnami/kafka:latest
+    image: docker.io/bitnamilegacy/kafka:latest
     container_name: kafka
     hostname: kafka
     ports:
       - '9092:9092'
     environment:
+      # KRaft
       KAFKA_CFG_NODE_ID: 0
       KAFKA_CFG_PROCESS_ROLES: controller,broker
       KAFKA_CFG_CONTROLLER_QUORUM_VOTERS: 0@kafka:9094
       KAFKA_CFG_CONTROLLER_LISTENER_NAMES: CONTROLLER
       KAFKA_CFG_INTER_BROKER_LISTENER_NAME: INTERNAL
+      # Listeners — SSL for host clients on 9092, plaintext inside the compose network
       KAFKA_CFG_LISTENERS: EXTERNAL://:9092,INTERNAL://:9093,CONTROLLER://:9094
       KAFKA_CFG_ADVERTISED_LISTENERS: EXTERNAL://localhost:9092,INTERNAL://kafka:9093
       KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP: EXTERNAL:SSL,INTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT
-
-      KAFKA_CFG_SSL_CLIENT_AUTH: required
-      KAFKA_CFG_SSL_TRUSTSTORE_LOCATION: /bitnami/kafka/config/certs/kafka.truststore.jks
-      KAFKA_CFG_SSL_TRUSTSTORE_PASSWORD: changeit
-      KAFKA_CFG_SSL_KEYSTORE_LOCATION: /bitnami/kafka/config/certs/kafka.keystore.jks
-      KAFKA_CFG_SSL_KEYSTORE_PASSWORD: changeit
-      KAFKA_CFG_SSL_KEY_PASSWORD: changeit
+      # TLS — Bitnami looks for kafka.keystore.jks / kafka.truststore.jks under certs/
+      # certs.sh emits PKCS12 even when the files use a .jks extension
+      KAFKA_TLS_TYPE: JKS
+      KAFKA_TLS_CLIENT_AUTH: required
+      KAFKA_CERTIFICATE_PASSWORD: changeit
+      KAFKA_CFG_SSL_KEYSTORE_TYPE: PKCS12
+      KAFKA_CFG_SSL_TRUSTSTORE_TYPE: PKCS12
     volumes:
-      - ./tls/kafka:/bitnami/kafka/config/certs
+      - ./tls/kafka:/opt/bitnami/kafka/config/certs:ro
+
+  ez-kafka:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    container_name: ez-kafka
+    hostname: ez-kafka
+    ports:
+      - '8080:8080'
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+    depends_on:
+      kafka:
+        condition: service_started
+      logstash:
+        condition: service_healthy
+
+  # Telegram: copy .env.example → .env and set TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID
+  prometheus:
+    image: prom/prometheus:v3.4.1
+    container_name: prometheus
+    ports:
+      - '9090:9090'
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --web.enable-lifecycle
+    depends_on:
+      - alertmanager
+      - ez-kafka
+
+  alertmanager:
+    image: prom/alertmanager:v0.28.1
+    container_name: alertmanager
+    ports:
+      - '9093:9093'
+    environment:
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID:-}
+    env_file:
+      - path: .env
+        required: false
+    volumes:
+      - ./alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - ./alertmanager/entrypoint.sh:/etc/alertmanager/entrypoint.sh:ro
+    entrypoint: [/bin/sh, /etc/alertmanager/entrypoint.sh]
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.17.4
+    container_name: elasticsearch
+    environment:
+      discovery.type: single-node
+      xpack.security.enabled: 'false'
+      xpack.security.http.ssl.enabled: 'false'
+      xpack.ml.enabled: 'false'
+      xpack.license.self_generated.type: trial
+      ES_JAVA_OPTS: -Xms512m -Xmx512m
+    ports:
+      - '9200:9200'
+    healthcheck:
+      test: ['CMD-SHELL', 'curl -sf http://localhost:9200/_cluster/health | grep -qE "green|yellow"']
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 40s
+
+  logstash:
+    image: docker.elastic.co/logstash/logstash:8.17.4
+    container_name: logstash
+    environment:
+      LS_JAVA_OPTS: -Xms256m -Xmx256m
+      xpack.monitoring.enabled: 'false'
+    volumes:
+      - ./logstash/pipeline.conf:/usr/share/logstash/pipeline/logstash.conf:ro
+    expose:
+      - '5000'
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    healthcheck:
+      test: ['CMD-SHELL', 'curl -sf http://localhost:9600 >/dev/null']
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 60s
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.17.4
+    container_name: kibana
+    ports:
+      - '5601:5601'
+    environment:
+      NODE_OPTIONS: --max-old-space-size=384
+      TELEGRAM_WEBHOOK_URL: https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN:-invalid}/sendMessage
+    volumes:
+      - ./kibana/kibana.yml:/usr/share/kibana/config/kibana.yml:ro
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    healthcheck:
+      test: ['CMD-SHELL', 'curl -sf http://localhost:5601/api/status | grep -q available']
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 60s
+
+  elk-setup:
+    image: alpine:3.21
+    container_name: elk-setup
+    volumes:
+      - ./kibana/setup.sh:/setup.sh:ro
+      - ./kibana/rule.json:/rule.json:ro
+    environment:
+      TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID:-}
+    env_file:
+      - path: .env
+        required: false
+    entrypoint: ['/bin/sh', '-c', 'apk add -q --no-cache curl && exec /bin/sh /setup.sh']
+    depends_on:
+      kibana:
+        condition: service_healthy
+    restart: 'no'

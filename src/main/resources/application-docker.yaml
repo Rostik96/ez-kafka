@@ -1,0 +1,14 @@
+spring:
+  docker:
+    compose:
+      enabled: false
+  kafka:
+    consumer:
+      bootstrap-servers: kafka:9093
+      security:
+        protocol: PLAINTEXT
+      ssl:
+        bundle: ""
+
+logstash:
+  host: logstash
